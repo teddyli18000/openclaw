@@ -1,0 +1,46 @@
+name: Scratch rebase PR 128524
+
+on:
+  push:
+    branches:
+      - scratch/task-rebase-trigger-128524-20260901
+
+permissions:
+  contents: write
+
+jobs:
+  rebase:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout latest upstream base in fork
+        uses: actions/checkout@v4
+        with:
+          ref: scratch/task-rebase-128524-20260901
+          fetch-depth: 0
+
+      - name: Cherry-pick scoped fix and verify shape
+        shell: bash
+        run: |
+          set -euxo pipefail
+          base=95383b3c5c37dfa0fd1a2209dabd8be4136f8205
+          fix=78c5f873ef2a2a41280b633f646deadc27742e81
+
+          test "$(git rev-parse HEAD)" = "$base"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git cherry-pick "$fix"
+
+          test "$(git rev-list --count "$base"..HEAD)" = "1"
+          test "$(git diff --name-only "$base"..HEAD)" = "src/gateway/server-kernel.test.ts"
+          test "$(git diff --numstat "$base"..HEAD)" = $'1\t0\tsrc/gateway/server-kernel.test.ts'
+          test "$(grep -c 'OPENCLAW_DISABLE_BUNDLED_PLUGINS: "1"' src/gateway/server-kernel.test.ts)" = "1"
+
+          git diff --check "$base"..HEAD
+          git show --stat --oneline --decorate HEAD
+          git diff "$base"..HEAD -- src/gateway/server-kernel.test.ts
+
+      - name: Update task branch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git push --force origin HEAD:fix/server-kernel-disable-bundled-plugins
