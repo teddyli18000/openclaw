@@ -1,0 +1,49 @@
+name: Scratch server-kernel proof
+
+on:
+  push:
+    branches:
+      - scratch/server-kernel-proof-20260901
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout scratch branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Activate repository pnpm
+        shell: bash
+        run: |
+          set -euxo pipefail
+          corepack enable
+          pnpm_spec="$(node -p "require('./package.json').packageManager")"
+          corepack prepare "$pnpm_spec" --activate
+          node --version
+          pnpm --version
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run focused gateway-kernel test
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test src/gateway/server-kernel.test.ts 2>&1 | tee /tmp/server-kernel-proof.txt
+
+      - name: Upload proof transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-kernel-proof
+          path: /tmp/server-kernel-proof.txt
+          if-no-files-found: warn
